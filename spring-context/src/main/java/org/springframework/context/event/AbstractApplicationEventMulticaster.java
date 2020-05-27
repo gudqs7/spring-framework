@@ -118,6 +118,7 @@ public abstract class AbstractApplicationEventMulticaster
 
 	@Override
 	public void addApplicationListenerBean(String listenerBeanName) {
+		// 在AbstractApplicationContext 的 registerListeners() 方法中调用，注册后getBean获取实例才能执行对应方法。
 		synchronized (this.retrievalMutex) {
 			this.defaultRetriever.applicationListenerBeans.add(listenerBeanName);
 			this.retrieverCache.clear();

@@ -59,6 +59,7 @@ import org.springframework.web.servlet.mvc.support.DefaultHandlerExceptionResolv
  * @author Rossen Stoyanchev
  * @author Juergen Hoeller
  * @since 3.1
+ * 负责编码（resolveArgument）和解码（handleReturnValue） 数据 <--> 二进制流
  */
 public class RequestResponseBodyMethodProcessor extends AbstractMessageConverterMethodProcessor {
 

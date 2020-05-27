@@ -153,7 +153,8 @@ public class HandlerExecutionChain {
 	 */
 	void applyPostHandle(HttpServletRequest request, HttpServletResponse response, @Nullable ModelAndView mv)
 			throws Exception {
-
+		// 如果 preHandle 中断了， 根本不会执行 postHandle, 所以一定是所有 preHandle执行成功， 才会执行 applyPostHandle 所以这里遍历所有拦截器即可
+		// 无需像triggerAfterCompletion 那样从 interceptorIndex 开始
 		HandlerInterceptor[] interceptors = getInterceptors();
 		if (!ObjectUtils.isEmpty(interceptors)) {
 			for (int i = interceptors.length - 1; i >= 0; i--) {

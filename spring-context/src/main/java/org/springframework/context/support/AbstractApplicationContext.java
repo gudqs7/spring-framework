@@ -516,40 +516,54 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	public void refresh() throws BeansException, IllegalStateException {
 		synchronized (this.startupShutdownMonitor) {
 			// Prepare this context for refreshing.
+			// 这里将容器状态设置好， 监听器清空，property 完整校验
 			prepareRefresh();
 
 			// Tell the subclass to refresh the internal bean factory.
+			// 子类会去创建一个BeanFactory， 然后根据配置文件加载beanDefinitions
 			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
 			// Prepare the bean factory for use in this context.
+			// 设置了一些 beanFactory的属性，
+			// 还有添加了实现自动注入 ApplicationContextAware 和 ApplicationContextListener 的BeanPostProcessor
+			// 以及注册了几个bean（各种 environment）
 			prepareBeanFactory(beanFactory);
 
 			try {
 				// Allows post-processing of the bean factory in context subclasses.
+				// 子类对beanFactory 添加自己的特殊的postProcessing
 				postProcessBeanFactory(beanFactory);
 
 				// Invoke factory processors registered as beans in the context.
+				// 执行加入的 postProcessors 以及扫描容器内某些可执行的postProcessors（按类别扫描，分三类处理【与order有关】）。
 				invokeBeanFactoryPostProcessors(beanFactory);
 
 				// Register bean processors that intercept bean creation.
+				// 扫描容器内 匹配的BeanPostProgress，按类别扫描， 分四类处理 ， 类似同上。
 				registerBeanPostProcessors(beanFactory);
 
 				// Initialize message source for this context.
+				// 初始化国际化资源解析器。
 				initMessageSource();
 
 				// Initialize event multicaster for this context.
+				// 初始化事件广播器。
 				initApplicationEventMulticaster();
 
 				// Initialize other special beans in specific context subclasses.
+				// 调用子类的其他刷新时需要做的事情
 				onRefresh();
 
 				// Check for listener beans and register them.
+				// 本地事件加入到事件广播器， 以及扫描容器内的事件bean也加入到广播器。
 				registerListeners();
 
 				// Instantiate all remaining (non-lazy-init) singletons.
+				// 设置转换器，实例化LoadTimeWaver对象，以及实例化一些单例对象（急于加载的对象）
 				finishBeanFactoryInitialization(beanFactory);
 
 				// Last step: publish corresponding event.
+				// 发布 ContextRefreshedEvent 事件， 初始化LifeCycleProcessor及调用 onRefresh 方法。
 				finishRefresh();
 			}
 
@@ -858,6 +872,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		// Register a default embedded value resolver if no bean post-processor
 		// (such as a PropertyPlaceholderConfigurer bean) registered any before:
 		// at this point, primarily for resolution in annotation attribute values.
+		// 对值里的表达式添加解析器。
 		if (!beanFactory.hasEmbeddedValueResolver()) {
 			beanFactory.addEmbeddedValueResolver(strVal -> getEnvironment().resolvePlaceholders(strVal));
 		}

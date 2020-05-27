@@ -127,7 +127,10 @@ class ConfigurationClassBeanDefinitionReader {
 	 */
 	private void loadBeanDefinitionsForConfigurationClass(
 			ConfigurationClass configClass, TrackedConditionEvaluator trackedConditionEvaluator) {
-
+		// 1.判断是否需要注册自己
+		// 2.处理 @Bean 的加载
+		// 3.处理 @ImportResource 的加载
+		// 4.
 		if (trackedConditionEvaluator.shouldSkip(configClass)) {
 			String beanName = configClass.getBeanName();
 			if (StringUtils.hasLength(beanName) && this.registry.containsBeanDefinition(beanName)) {
@@ -137,14 +140,20 @@ class ConfigurationClassBeanDefinitionReader {
 			return;
 		}
 
+		// 这里判断 是否是走的递归进去的 configClass, 如@Import, 是的话, 将自己注册到容器中.
 		if (configClass.isImported()) {
 			registerBeanDefinitionForImportedConfigurationClass(configClass);
 		}
+		// 这里添加 带 @Bean 的方法到容器中
 		for (BeanMethod beanMethod : configClass.getBeanMethods()) {
 			loadBeanDefinitionsForBeanMethod(beanMethod);
 		}
 
+		// 将 @ImportResource 的数据加载到 容器中  (用指定的 reader class, 去加载指定位置下的文件，可能是applicationContext.xml格式）
 		loadBeanDefinitionsFromImportedResources(configClass.getImportedResources());
+		// 将 @Import 中实现了 ImportBeanDefinitionRegistrar 的数据加载到容器中
+		// 即 取出 importBeanDefinitionRegistrars 中的每个 ImportBeanDefinitionRegistrar 都执行 registerBeanDefinitions() 方法
+		// 由 具体的 ImportBeanDefinitionRegistrar 实现类实现加载 beanDefinition 的逻辑。
 		loadBeanDefinitionsFromRegistrars(configClass.getImportBeanDefinitionRegistrars());
 	}
 

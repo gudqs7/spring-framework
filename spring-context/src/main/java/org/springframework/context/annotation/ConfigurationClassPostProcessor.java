@@ -263,6 +263,9 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 	 * {@link Configuration} classes.
 	 */
 	public void processConfigBeanDefinitions(BeanDefinitionRegistry registry) {
+		// 从容器中扫描所有可以解析的类。
+		//  1.有 @Configuration 注解， 标为 FULL，为带 @Bean 的方法生成 BeanFactory 时判断 proxyBeanMethods 是否生成代理， 生成则等同单例
+		//  2.有 @Component/@Import/@ImportSource/@ComponentScan， 标为LITE，@Bean 的方法每次获取都 new 一个。（多例）
 		List<BeanDefinitionHolder> configCandidates = new ArrayList<>();
 		String[] candidateNames = registry.getBeanDefinitionNames();
 
@@ -315,7 +318,10 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 
 		Set<BeanDefinitionHolder> candidates = new LinkedHashSet<>(configCandidates);
 		Set<ConfigurationClass> alreadyParsed = new HashSet<>(configCandidates.size());
+		// 1.循环解析每一个类， 将解析的一些数据先保存起来
+		// 2.使用 reader 加载解析后的数据，如 @Bean
 		do {
+			// 解析并保存数据 (@ComponentScan直接处理了)
 			parser.parse(candidates);
 			parser.validate();
 
@@ -328,10 +334,12 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 						registry, this.sourceExtractor, this.resourceLoader, this.environment,
 						this.importBeanNameGenerator, parser.getImportRegistry());
 			}
+			// 根据解析的数据, 加载 beanDefinition 到容器中.
 			this.reader.loadBeanDefinitions(configClasses);
 			alreadyParsed.addAll(configClasses);
 
 			candidates.clear();
+			// 解析后扫描容器是否有未解析的 @Configuration (递归的都以及解析了, 我也不知道哪里会出来新的)
 			if (registry.getBeanDefinitionCount() > candidateNames.length) {
 				String[] newCandidateNames = registry.getBeanDefinitionNames();
 				Set<String> oldCandidateNames = new HashSet<>(Arrays.asList(candidateNames));
