@@ -514,13 +514,17 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 
 	@Override
 	public void refresh() throws BeansException, IllegalStateException {
-		// 1.清空容器及其相关的东西
-		// 2.创建一个新的容器
-		// 3.设置容器的属性
-		// 4.往容器中加入一些有用的 bean
-		// 5.扫描并处理两大类 PostProcessor
-		// 6.国际化处理器, 事件广播器(还有默认的一些事件需要注册)
-		// 7.最后对容器做一些设置, 创建非懒加载的单例 bean
+		// 1.设置容器初始的一些属性(时间,状态)，初始化占位符数据源并校验所有 bean 所使用的占位符是否存在, 清空事件和监听
+		// 2.清空重置旧的 beanFactory, 再创建新的 beanFactory 并通过解析 xml或注解 加载 beanDefinitions
+		// 3.设置了一些 beanFactory 的属性, 添加了几个有用的 BeanPostProcessor, 还添加了几个 bean 到容器中(都是环境相关的 bean)
+		// 4.子类对beanFactory 添加自己的特殊的 BeanPostProcessor (如servletContxt/servletConfig注入)
+		// 5.扫描容器中实现了 BeanFactoryPostProcessor 接口的 bean 将其注册到 beanFactory 中并执行
+		// 6.扫描容器中实现了 BeanPostProcessor 接口的 bean 将其注册到 beanFactory 但不执行(实例化 bean 对象那会有几个执行时机)
+		// 7.创建一个国际化资源解析器并注册到 beanFactory; 创建一个事件广播器并注册到 beanFactory.
+		// 8.调用子类的其他刷新时需要做的事情(模板方法)
+		// 9.扫描容器中实现了 ApplicationListener 接口的 bean, 将其预存到广播器中但不执行
+		//10.完成 beanFactory 的一些配置(包括终结一些东西, 如 setTempClassLoader(null) ); 将单例的 bean 创建出来放入容器中(未设置lazy-init=true)的 bean
+		//11.广播 ContextRefreshedEvent 事件， 初始化LifeCycleProcessor及调用其 onRefresh 方法.
 
 		synchronized (this.startupShutdownMonitor) {
 			// Prepare this context for refreshing.
@@ -528,7 +532,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 			prepareRefresh();
 
 			// Tell the subclass to refresh the internal bean factory.
-			// 清空重置旧的 beanFactory, 再创建新的 beanFactory 并加载 beanDefinitions
+			// 清空重置旧的 beanFactory, 再创建新的 beanFactory 并解析 xml或注解 加载 beanDefinitions
 			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
 			// Prepare the bean factory for use in this context.
