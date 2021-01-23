@@ -514,56 +514,68 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 
 	@Override
 	public void refresh() throws BeansException, IllegalStateException {
+		// 1.清空容器及其相关的东西
+		// 2.创建一个新的容器
+		// 3.设置容器的属性
+		// 4.往容器中加入一些有用的 bean
+		// 5.扫描并处理两大类 PostProcessor
+		// 6.国际化处理器, 事件广播器(还有默认的一些事件需要注册)
+		// 7.最后对容器做一些设置, 创建非懒加载的单例 bean
+
 		synchronized (this.startupShutdownMonitor) {
 			// Prepare this context for refreshing.
-			// 这里将容器状态设置好， 监听器清空，property 完整校验
+			// 设置容器初始的一些属性(时间,状态)，初始化占位符数据源并校验所有 bean 所使用的占位符是否存在, 清空事件和监听
 			prepareRefresh();
 
 			// Tell the subclass to refresh the internal bean factory.
-			// 子类会去创建一个BeanFactory， 然后根据配置文件加载beanDefinitions
+			// 清空重置旧的 beanFactory, 再创建新的 beanFactory 并加载 beanDefinitions
 			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
 			// Prepare the bean factory for use in this context.
-			// 设置了一些 beanFactory的属性，
-			// 还有添加了实现自动注入 ApplicationContextAware 和 ApplicationContextListener 的BeanPostProcessor
-			// 以及注册了几个bean（各种 environment）
+			// 设置了一些 beanFactory 的属性, 添加了几个有用的 BeanPostProcessor, 还添加了几个 bean 到容器中(都是环境相关的 bean)
 			prepareBeanFactory(beanFactory);
 
 			try {
 				// Allows post-processing of the bean factory in context subclasses.
-				// 子类对beanFactory 添加自己的特殊的postProcessing
+				// 子类对beanFactory 添加自己的特殊的 BeanPostProcessor (如servletContxt/servletConfig注入)
 				postProcessBeanFactory(beanFactory);
 
 				// Invoke factory processors registered as beans in the context.
-				// 执行加入的 postProcessors 以及扫描容器内某些可执行的postProcessors（按类别扫描，分三类处理【与order有关】）。
+				// 扫描容器中实现了 BeanFactoryPostProcessor 接口的 bean 将其注册到 beanFactory 中并执行
+				//   扫描6次, 2(BeanDefinitionRegistry/BeanFactory) x 3(优先级:高/中/其他)
 				invokeBeanFactoryPostProcessors(beanFactory);
 
 				// Register bean processors that intercept bean creation.
-				// 扫描容器内 匹配的BeanPostProgress，按类别扫描， 分四类处理 ， 类似同上。
+				// 扫描容器中实现了 BeanPostProcessor 接口的 bean 将其注册到 beanFactory 但不执行; 扫描6次: 2(MergedBeanDefinitionPostProcessor/其他) x 3(优先级: 高/中/其他)
 				registerBeanPostProcessors(beanFactory);
 
 				// Initialize message source for this context.
-				// 初始化国际化资源解析器。
+				// 创建一个国际化资源解析器并注册到 beanFactory.
 				initMessageSource();
 
 				// Initialize event multicaster for this context.
-				// 初始化事件广播器。
+				// 创建一个事件广播器并注册到 beanFactory.
 				initApplicationEventMulticaster();
 
 				// Initialize other special beans in specific context subclasses.
-				// 调用子类的其他刷新时需要做的事情
+				// 调用子类的其他刷新时需要做的事情(模板方法)
 				onRefresh();
 
 				// Check for listener beans and register them.
-				// 本地事件加入到事件广播器， 以及扫描容器内的事件bean也加入到广播器。
+				// 将可能存在的 applicationListeners 注册到事件广播器中(新建时是不存在的),
+				// 然后扫描容器中实现了 ApplicationListener 接口的 bean, 将其预存到广播器中但不执行
+				// 将之前 publishEvent() 想广播的事件广播出去, 然后字段 earlyApplicationEvents 赋值为空(代表之后可立即广播)
 				registerListeners();
 
 				// Instantiate all remaining (non-lazy-init) singletons.
-				// 设置转换器，实例化LoadTimeWaver对象，以及实例化一些单例对象（急于加载的对象）
+				// 完成 beanFactory 的一些配置(包括终结一些东西, 如 setTempClassLoader(null) )
+				// 注册默认的表达式解析器(若无相应的bean存在)
+				// 扫描容器中实现了 LoadTimeWeaverAware 接口的 bean, 并触发(getBean)之前注册过的 BeanPostProcessor
+				// 将单例的 bean 创建出来放入容器中(未设置lazy-init=true)的 bean
 				finishBeanFactoryInitialization(beanFactory);
 
 				// Last step: publish corresponding event.
-				// 发布 ContextRefreshedEvent 事件， 初始化LifeCycleProcessor及调用 onRefresh 方法。
+				// 广播 ContextRefreshedEvent 事件， 初始化LifeCycleProcessor及调用其 onRefresh 方法.
 				finishRefresh();
 			}
 
@@ -574,9 +586,11 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 				}
 
 				// Destroy already created singletons to avoid dangling resources.
+				// 销毁缓存的单例对象
 				destroyBeans();
 
 				// Reset 'active' flag.
+				// 变更状态
 				cancelRefresh(ex);
 
 				// Propagate exception to caller.
@@ -586,6 +600,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 			finally {
 				// Reset common introspection caches in Spring's core, since we
 				// might not ever need metadata for singleton beans anymore...
+				// 清空公共工具产生的缓存(内存松一口气).
 				resetCommonCaches();
 			}
 		}
@@ -596,6 +611,11 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 * active flag as well as performing any initialization of property sources.
 	 */
 	protected void prepareRefresh() {
+		// 1.设置容器初始的一些属性, 如启动时间, 当前状态
+		// 2.打印开始日志
+		// 3.初始化占位符数据源
+		// 4.校验所有 bean 所使用的占位符是否存在
+		// 5.清空事件和监听
 		// Switch to active.
 		this.startupDate = System.currentTimeMillis();
 		this.closed.set(false);
@@ -648,7 +668,9 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 * @see #getBeanFactory()
 	 */
 	protected ConfigurableListableBeanFactory obtainFreshBeanFactory() {
+		// 若存在 旧的 beanFactory, 销毁它, 再加载配置文件中的 bean 等
 		refreshBeanFactory();
+		// 获取后再判断一次, 确保不是 null 再返回
 		return getBeanFactory();
 	}
 
@@ -658,6 +680,15 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 * @param beanFactory the BeanFactory to configure
 	 */
 	protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {
+		// 1.设置 beanFactory 的类加载器
+		// 2.设置 beanFactory 的表达式解析器
+		// 3.1:注册一个 BeanPostProcessor 用于将实现了ApplicationContext能力相关的Aware接口的 bean, 触发赋值setter 注入 applicationContext 对象
+		// 3.2:设置 beanFactory 处理 bean 时要忽略的接口(主要是setter注入时忽视一些也是setter的方法, 因为这些方法会由 PostProcessor 来触发)
+		// 4.注册一些特殊的 bean(注入这些bean时会注入 this 对象: 多功能工具人 ApplicationContext, 可见其和普通 bean 的注册方式不一样)
+		// 5.注册一个 BeanPostProcessor 用于检测加载的 bean 是否实现了 ApplicationListener 接口, 若是, 则注册到事件广播器中(不是,是暂存在applicationListeners字段中, 等事件广播器创建后才注册)
+		// 6.注册一个 BeanPostProcessor 用于触发实现了 LoadTimeWeaverAware 接口的 bean 的 setLoadTimeWeaver() 社会 LTW 实例.
+		// 7.注册几个环境相关 bean 到容器中(Spring的环境对象, 以及系统环境变量和系统配置文件)
+
 		// Tell the internal bean factory to use the context's class loader etc.
 		beanFactory.setBeanClassLoader(getClassLoader());
 		beanFactory.setBeanExpressionResolver(new StandardBeanExpressionResolver(beanFactory.getBeanClassLoader()));
@@ -717,6 +748,8 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 * <p>Must be called before singleton instantiation.
 	 */
 	protected void invokeBeanFactoryPostProcessors(ConfigurableListableBeanFactory beanFactory) {
+		// 1.扫描并执行 BeanFactoryPostProcessor
+		// 2.若之前未处理LTW, 则再次尝试处理 LTW(因为有些 bean 会在 ConfigurationClassPostProcessor 执行后注册到容器中)
 		PostProcessorRegistrationDelegate.invokeBeanFactoryPostProcessors(beanFactory, getBeanFactoryPostProcessors());
 
 		// Detect a LoadTimeWeaver and prepare for weaving, if found in the meantime
@@ -835,6 +868,11 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 * Doesn't affect other listeners, which can be added without being beans.
 	 */
 	protected void registerListeners() {
+		// 1.将可能存在的 applicationListeners 注册到事件广播器中(新建时是不存在的)
+		// 2.扫描容器中实现了 ApplicationListener 接口的 bean, 将其预存到广播器中但不执行
+		// 3.将之前 publishEvent() 想广播的事件广播出去, 然后字段 earlyApplicationEvents 赋值为空
+		//    (因为 publishEvent() 中根据是否为空判断立刻执行或先存着) (另这也解释了 prepareRefresh() 中为何要赋值一个空集合)
+
 		// Register statically specified listeners first.
 		for (ApplicationListener<?> listener : getApplicationListeners()) {
 			getApplicationEventMulticaster().addApplicationListener(listener);
@@ -862,6 +900,11 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 * initializing all remaining singleton beans.
 	 */
 	protected void finishBeanFactoryInitialization(ConfigurableListableBeanFactory beanFactory) {
+		// 1.完成 beanFactory 的一些配置
+		// 2.注册默认的表达式解析器(若无相应的bean存在)
+		// 3.扫描容器中实现了 LoadTimeWeaverAware 接口的 bean, 并触发(getBean)之前注册过的 BeanPostProcessor
+		// 4.将单例的 bean 创建出来放入容器中(未设置lazy-init=true)的 bean
+
 		// Initialize conversion service for this context.
 		if (beanFactory.containsBean(CONVERSION_SERVICE_BEAN_NAME) &&
 				beanFactory.isTypeMatch(CONVERSION_SERVICE_BEAN_NAME, ConversionService.class)) {
@@ -899,6 +942,12 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 * {@link org.springframework.context.event.ContextRefreshedEvent}.
 	 */
 	protected void finishRefresh() {
+		// 1.清空资源缓存
+		// 2.创建一个生命周期管理器(start, refresh, stop等)并注册到 beanFactory
+		// 3.触发生命周期管理器的 onRefresh()
+		// 4.广播容器刷新完成的事件
+		// 5.为 Spring Tool Suite 提供某些便捷(没用过, 不知道...)
+
 		// Clear context-level resource caches (such as ASM metadata from scanning).
 		clearResourceCaches();
 

@@ -119,6 +119,10 @@ public abstract class AbstractRefreshableApplicationContext extends AbstractAppl
 	 */
 	@Override
 	protected final void refreshBeanFactory() throws BeansException {
+		// 1.存在旧的则先摧毁 bean 对象实例及缓存数据, 再将旧的置为 null
+		// 2.创建一个新的 beanFactory 对象, 再设置 id及一些配置
+		// 3.扫描并加载 beanDefinations
+		// 4.设置这个新的 beanFactory 对象为 applicationContext 的 beanFactory 字段值.
 		if (hasBeanFactory()) {
 			destroyBeans();
 			closeBeanFactory();

@@ -454,6 +454,10 @@ public abstract class AbstractEnvironment implements ConfigurableEnvironment {
 
 	@Override
 	public void merge(ConfigurableEnvironment parent) {
+		// 1.将父容器的东西加入到子容器中
+		//   子容器不存在的 PropertySource
+		//   父容器的 activeProfiles
+		//   父容器的 defaultProfiles
 		for (PropertySource<?> ps : parent.getPropertySources()) {
 			if (!this.propertySources.contains(ps.getName())) {
 				this.propertySources.addLast(ps);

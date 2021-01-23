@@ -74,6 +74,7 @@ public abstract class AbstractRefreshableConfigApplicationContext extends Abstra
 	 * <p>If not set, the implementation may use a default as appropriate.
 	 */
 	public void setConfigLocations(@Nullable String... locations) {
+		// 为 configLocations 字段赋值(告知配置文件位置), 赋值前会根据环境变量解析(此时环境变量中只有系统环境变量: 如JAVA_HOME).
 		if (locations != null) {
 			Assert.noNullElements(locations, "Config locations must not be null");
 			this.configLocations = new String[locations.length];

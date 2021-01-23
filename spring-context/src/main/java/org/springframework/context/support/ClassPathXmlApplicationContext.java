@@ -138,9 +138,20 @@ public class ClassPathXmlApplicationContext extends AbstractXmlApplicationContex
 			String[] configLocations, boolean refresh, @Nullable ApplicationContext parent)
 			throws BeansException {
 
+		// 为容器的 parent 字段赋值, 若 parent 不为空, 且有 ConfigurableEnvironment, 则合并数据(将父容器有的加到子容器中)
+		// 即执行了 org.springframework.context.support.AbstractApplicationContext.setParent()
 		super(parent);
+
+		// 为 configLocations 字段赋值(告知配置文件位置), 赋值前会根据环境变量解析(此时环境变量中只有系统环境变量: 如JAVA_HOME).
 		setConfigLocations(configLocations);
 		if (refresh) {
+			// 1.清空容器及其相关的东西
+			// 2.创建一个新的容器
+			// 3.设置容器的属性
+			// 4.往容器中加入一些有用的 bean
+			// 5.扫描并处理两大类 PostProcessor
+			// 6.国际化处理器, 事件广播器(还有默认的一些事件需要注册)
+			// 7.最后对容器做一些设置, 创建非懒加载的单例 bean
 			refresh();
 		}
 	}

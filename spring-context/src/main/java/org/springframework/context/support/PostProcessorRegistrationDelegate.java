@@ -56,6 +56,10 @@ final class PostProcessorRegistrationDelegate {
 
 	public static void invokeBeanFactoryPostProcessors(
 			ConfigurableListableBeanFactory beanFactory, List<BeanFactoryPostProcessor> beanFactoryPostProcessors) {
+		// 1.若 beanFactory 实现了 BeanDefinitionRegistry 接口(new AnnotationConfigApplicationContext 就实现了)
+		//    则扫描所有实现了 BeanDefinitionRegistryPostProcessor 接口的 bean, 根据优先级分三类(高/中/其他)依次执行
+		// 2.然后扫描所有实现了 BeanFactoryPostProcessor 接口的 bean, 依旧是根据优先级分三类依次执行.
+		// 3.每次执行前都会根据 Order 信息排序, 再遍历执行
 
 		// Invoke BeanDefinitionRegistryPostProcessors first, if any.
 		Set<String> processedBeans = new HashSet<>();
@@ -189,6 +193,9 @@ final class PostProcessorRegistrationDelegate {
 
 	public static void registerBeanPostProcessors(
 			ConfigurableListableBeanFactory beanFactory, AbstractApplicationContext applicationContext) {
+		// 1.扫描6次: 2(MergedBeanDefinitionPostProcessor/其他) x 3(优先级: 高/中/其他)
+		//    将其加入到 beanFactory 的 beanPostProcessors 集合中
+		// 2.再次加入 ApplicationListenerDetector (用于处理实现 ApplicationListener 的 bean 注册到事件广播器), 主要是使其在链末尾, 可以最后执行.
 
 		String[] postProcessorNames = beanFactory.getBeanNamesForType(BeanPostProcessor.class, true, false);
 
