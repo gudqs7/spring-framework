@@ -29,6 +29,10 @@ import org.springframework.util.Assert;
  */
 public class NamedBeanHolder<T> implements NamedBean {
 
+	/*
+	   这个类就是个包装类, 用map亦可代替(比喻啊)
+	 */
+
 	private final String beanName;
 
 	private final T beanInstance;

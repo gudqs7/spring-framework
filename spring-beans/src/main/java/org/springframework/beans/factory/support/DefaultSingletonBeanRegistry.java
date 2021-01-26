@@ -135,6 +135,7 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 * @param singletonObject the singleton object
 	 */
 	protected void addSingleton(String beanName, Object singletonObject) {
+		// 添加单例对象实例缓存, 移除 singletonFactories 和 earlySingletonObjects 两个防止循环依赖的更高一层缓存
 		synchronized (this.singletonObjects) {
 			this.singletonObjects.put(beanName, singletonObject);
 			this.singletonFactories.remove(beanName);
@@ -152,6 +153,7 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 * @param singletonFactory the factory for the singleton object
 	 */
 	protected void addSingletonFactory(String beanName, ObjectFactory<?> singletonFactory) {
+		// 1.添加 singletonFactories 缓存, 移除 earlySingletonObjects; 解决循环依赖问题.
 		Assert.notNull(singletonFactory, "Singleton factory must not be null");
 		synchronized (this.singletonObjects) {
 			if (!this.singletonObjects.containsKey(beanName)) {
@@ -178,6 +180,12 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 */
 	@Nullable
 	protected Object getSingleton(String beanName, boolean allowEarlyReference) {
+		// 1.判断是否存在于 singletonObjects 中
+		// 2.若不存在则判断 bean 是否处于创建中(未创建完成, 如循环依赖时)
+		// 3.若处于创建中, 则同步后判断是否存在于 earlySingletonObjects (也就是 singletonFactories 移除后存入的地方)
+		//      (因为FactoryBean占用空间大, 获取对象麻烦且速度更慢, 这是为了防止如果循环依赖链条很长 多次获取浪费CPU的问题)
+		// 4.不存于 earlySingletonObjects 则代表第一次(也只会有一次)取 singletonFactories
+		//    取出后调用 getObject() 并将其存入到 earlySingletonObjects, 然后从 singletonFactories 中移除. 以后就少走几行代码了.
 		Object singletonObject = this.singletonObjects.get(beanName);
 		if (singletonObject == null && isSingletonCurrentlyInCreation(beanName)) {
 			synchronized (this.singletonObjects) {
@@ -204,6 +212,10 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 * @return the registered singleton object
 	 */
 	public Object getSingleton(String beanName, ObjectFactory<?> singletonFactory) {
+		// 1.先确保是第一次创建单例对象, 防止重复创建
+		// 2.进行一些异常处理
+		// 3.调用 singletonFactory.getObject() 创建对象
+		// 4.创建对象结束添加单例缓存和清空 singletonFactories / earlySingletonObjects 缓存.
 		Assert.notNull(beanName, "Bean name must not be null");
 		synchronized (this.singletonObjects) {
 			Object singletonObject = this.singletonObjects.get(beanName);
@@ -249,6 +261,7 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 					afterSingletonCreation(beanName);
 				}
 				if (newSingleton) {
+					// 添加单例对象实例缓存, 移除 singletonFactories 和 earlySingletonObjects 两个防止循环依赖的更高一层缓存
 					addSingleton(beanName, singletonObject);
 				}
 			}

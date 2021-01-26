@@ -243,6 +243,14 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 	@SuppressWarnings("unchecked")
 	protected <T> T doGetBean(final String name, @Nullable final Class<T> requiredType,
 			@Nullable final Object[] args, boolean typeCheckOnly) throws BeansException {
+		// 1.获取完整的 beanName
+		// 2.调用 getSingleton1() 检查是否存在缓存, 这层检查可防止依赖循环.
+		//     若存在, 则通过 getObjectForBeanInstance() 判断缓存的是 bean 还是 FactoryBean 并返回相应的对象实例.
+		// 3.若不存在, 先试着从父容器获取(子容器不存在这个 beanDefinition 且父容器不为空)
+		//     没有父容器则 调用 markBeanAsCreated() 标记这个 bean已经创建了 (先标记, 再创建)
+		//     获取 beanDefinition, 判断其 dependsOn 属性是否存在, 存在则 先获取依赖的 bean
+		//     调用 getSingleton2() 处理单例缓存
+		// 4.而 getSingleton2() 中的闭包中 执行的 createBean() 方法中则才是创建实例并调用 BeanPostProcessor
 
 		final String beanName = transformedBeanName(name);
 		Object bean;
@@ -320,7 +328,7 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 
 				// Create bean instance.
 				if (mbd.isSingleton()) {
-					// 这里进去创建得到后， singletonObjects 加入 A
+					// getSingleton 会先调用 get(即闭包本身), 再添加单例缓存, 确保单例缓存对象中的数据是完整的.
 					sharedInstance = getSingleton(beanName, () -> {
 						try {
 							return createBean(beanName, mbd, args);
@@ -959,6 +967,33 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 	 * @since 5.3
 	 */
 	BeanPostProcessorCache getBeanPostProcessorCache() {
+		// 各种 BeanPostProcessor 的调用时机可从此处获取, 如
+		// 1.1: InstantiationAwareBeanPostProcessor 的 postProcessAfterInstantiation()
+		//   在 org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean 第一段
+		// 1.2: InstantiationAwareBeanPostProcessor 的 postProcessProperties()
+		//   在 org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean 第二段
+		// 1.3: InstantiationAwareBeanPostProcessor 的 postProcessPropertyValues
+		//   在 org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean 第三段
+		// 1.4: InstantiationAwareBeanPostProcessor 的 postProcessBeforeInstantiation()
+		//   在 org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.applyBeanPostProcessorsBeforeInstantiation 中
+
+		// 2.1: SmartInstantiationAwareBeanPostProcessor 的 predictBeanType()
+		//   在 org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.predictBeanType 中
+		// 2.2: SmartInstantiationAwareBeanPostProcessor 的 getEarlyBeanReference()
+		//   在 org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.getEarlyBeanReference 中
+		// 2.3: SmartInstantiationAwareBeanPostProcessor 的 determineCandidateConstructors()
+		//   在 org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.determineConstructorsFromBeanPostProcessors 中
+
+		// 3.1: MergedBeanDefinitionPostProcessor 的 postProcessMergedBeanDefinition()
+		//   在 org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.applyMergedBeanDefinitionPostProcessors 中
+		// 3.2: MergedBeanDefinitionPostProcessor 的 resetBeanDefinition()
+		//   在 org.springframework.beans.factory.support.DefaultListableBeanFactory.resetBeanDefinition 中
+
+		// 4.1: DestructionAwareBeanPostProcessor 的 postProcessBeforeDestruction()
+		//   在 org.springframework.beans.factory.support.DisposableBeanAdapter.destroy 中
+		// 4.2: DestructionAwareBeanPostProcessor 的 requiresDestruction()
+		//   在 org.springframework.beans.factory.support.DisposableBeanAdapter.filterPostProcessors 和 org.springframework.beans.factory.support.DisposableBeanAdapter.hasApplicableProcessors 中
+
 		BeanPostProcessorCache bpCache = this.beanPostProcessorCache;
 		if (bpCache == null) {
 			bpCache = new BeanPostProcessorCache();
@@ -1813,6 +1848,8 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 	 */
 	protected Object getObjectForBeanInstance(
 			Object beanInstance, String name, String beanName, @Nullable RootBeanDefinition mbd) {
+		// 1.判断 beanInstance 是否为 &开头的 Bean, 防止接下来的判断存在问题.
+		// 2.判断 beanInstance 是否为 FactoryBean, 是则调用 getObjectFromFactoryBean 获取实际对象并返回.
 
 		// Don't let calling code try to dereference the factory if the bean isn't a factory.
 		if (BeanFactoryUtils.isFactoryDereference(name)) {

@@ -347,6 +347,7 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T> T getBean(Class<T> requiredType, @Nullable Object... args) throws BeansException {
+		// 调用 resolveBean 获取对象, 并处理异常.
 		Assert.notNull(requiredType, "Required type must not be null");
 		Object resolved = resolveBean(ResolvableType.forRawClass(requiredType), args, false);
 		if (resolved == null) {
@@ -454,6 +455,9 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 
 	@Nullable
 	private <T> T resolveBean(ResolvableType requiredType, @Nullable Object[] args, boolean nonUniqueAsNull) {
+		// 调用 resolveNamedBean, 如存在 bean 则直接返回. (核心)
+		// 若不存在则从父容器中寻找, 父容器实现了 DefaultListableBeanFactory 则调与同子容器相同的方法
+		// 若没实现则 通过 getBeanProvider 获取.
 		NamedBeanHolder<T> namedBean = resolveNamedBean(requiredType, args, nonUniqueAsNull);
 		if (namedBean != null) {
 			return namedBean.getBeanInstance();
@@ -545,6 +549,7 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 	}
 
 	private String[] doGetBeanNamesForType(ResolvableType type, boolean includeNonSingletons, boolean allowEagerInit) {
+		// 遍历所有 beanDefinotaion, 调用 isTypeMatch 判断是否与 type 匹配, 匹配则加入返回集合.
 		List<String> result = new ArrayList<>();
 
 		// Check all bean definitions.
@@ -1186,6 +1191,10 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 	@Nullable
 	private <T> NamedBeanHolder<T> resolveNamedBean(
 			ResolvableType requiredType, @Nullable Object[] args, boolean nonUniqueAsNull) throws BeansException {
+		// 1.调用 getBeanNamesForType 获取所有与 type 相匹配的 beanName 集合.
+		// 2.遍历判断每个 beanName 是否可用
+		// 3.若可用的 beanName 只有一个, 则调用 getBean(beanName) 获取对象实例并返回
+		//   若可用数超过一个, 则试着根据是否主要以及高优先级来确定一个 beanName 实例, 若能确定则返回, 不能则报错.
 
 		Assert.notNull(requiredType, "Required type must not be null");
 		String[] candidateNames = getBeanNamesForType(requiredType);

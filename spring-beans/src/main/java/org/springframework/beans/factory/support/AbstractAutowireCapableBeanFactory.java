@@ -478,6 +478,9 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	@Override
 	protected Object createBean(String beanName, RootBeanDefinition mbd, @Nullable Object[] args)
 			throws BeanCreationException {
+		// 1.调用 resolveBeanClass 解析得到真正的 bean class, 若解析不为空且处于某些情况下, 则复制一份 beanDefinition 并设置 beanClass 为解析所得
+		// 2.执行 BeanPostProcessor 的 postProcessorsBeforeInstantiation() 方法
+		// 3.调用 doCreateBean() 创建对象 并返回
 
 		if (logger.isTraceEnabled()) {
 			logger.trace("Creating instance of bean '" + beanName + "'");
@@ -548,6 +551,12 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	 */
 	protected Object doCreateBean(final String beanName, final RootBeanDefinition mbd, final @Nullable Object[] args)
 			throws BeanCreationException {
+		// 1.调用 createBeanInstance() 获得一个 对象实例的 包装类
+		// 2.同步锁下执行 BeanFactoryPostProcessor 的 postProcessMergedBeanDefinition().
+		// 3.添加 singletonFactories 缓存, 移除 earlySingletonObjects; 解决循环依赖问题.
+		// 4.调用 populateBean() 检查字段是否需要注入对象实例, 是则获取对应的 bean 注入. (可能引起循环依赖)
+		// 5.调用 initializeBean() 执行对象的一些 Aware 和 init 方法和 BeanPostProcessor 的 postProcessBeforeInitialization.
+		// 6.最后返回对象实例.
 
 		// Instantiate the bean.
 		BeanWrapper instanceWrapper = null;
@@ -606,6 +615,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		}
 
 		if (earlySingletonExposure) {
+			// 此时进入大概是会从 earlySingletonObjects 中取到值.
 			Object earlySingletonReference = getSingleton(beanName, false);
 			if (earlySingletonReference != null) {
 				if (exposedObject == bean) {
@@ -1769,6 +1779,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		}
 
 		try {
+			// 执行了 bean 的 afterPropertiesSet 方法(Spring MVC 狂喜)
 			invokeInitMethods(beanName, wrappedBean, mbd);
 		}
 		catch (Throwable ex) {

@@ -1190,6 +1190,8 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 
 	@Override
 	public <T> T getBean(Class<T> requiredType) throws BeansException {
+		// 判断容器的状态, 确保 beanFactory 可用.(主要是若不可用, 提示的错误信息会比getBeanFacgtory()中更准确)
+		// 使用 beanFactory 的 getBean 方法获取对象并返回.
 		assertBeanFactoryActive();
 		return getBeanFactory().getBean(requiredType);
 	}

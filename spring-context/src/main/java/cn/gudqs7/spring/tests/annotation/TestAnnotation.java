@@ -15,13 +15,13 @@ import org.springframework.stereotype.Component;
 public class TestAnnotation {
 
 	public static void main(String[] args) {
-//		ApplicationContext context = new AnnotationConfigApplicationContext(TestAnnotation.class);
-//		UserServiceImpl bean = context.getBean(UserServiceImpl.class);
-//		bean.sayHi();
+		ApplicationContext context = new AnnotationConfigApplicationContext(TestAnnotation.class);
+		UserServiceImpl bean = context.getBean(UserServiceImpl.class);
+		bean.sayHi();
 
-		ApplicationContext xmlContext = new ClassPathXmlApplicationContext("application-wq.xml");
-		UserServiceImpl userService = xmlContext.getBean(UserServiceImpl.class);
-		userService.sayHi();
+//		ApplicationContext xmlContext = new ClassPathXmlApplicationContext("application-wq.xml");
+//		UserServiceImpl userService = xmlContext.getBean(UserServiceImpl.class);
+//		userService.sayHi();
 
 	}
 
