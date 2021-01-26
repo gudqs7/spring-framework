@@ -456,6 +456,7 @@ public abstract class WebUtils {
 	@SuppressWarnings("unchecked")
 	@Nullable
 	public static <T> T getNativeRequest(ServletRequest request, @Nullable Class<T> requiredType) {
+		// 递归获取 request 的类型, 若为 requiredType 则返回 request, 否则返回 null
 		if (requiredType != null) {
 			if (requiredType.isInstance(request)) {
 				return (T) request;

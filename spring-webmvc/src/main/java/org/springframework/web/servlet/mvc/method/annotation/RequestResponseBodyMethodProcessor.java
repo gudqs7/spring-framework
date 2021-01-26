@@ -127,6 +127,8 @@ public class RequestResponseBodyMethodProcessor extends AbstractMessageConverter
 	@Override
 	public Object resolveArgument(MethodParameter parameter, @Nullable ModelAndViewContainer mavContainer,
 			NativeWebRequest webRequest, @Nullable WebDataBinderFactory binderFactory) throws Exception {
+		// 调用 readWithMessageConverters 读取 body 的数据, 再序列化 json 成相应的 Java Bean
+		// 使用 binder 检查 arg 的值是否与 @Valid 的那些注解相关的规则相符, 若有错误, 则抛异常.
 
 		parameter = parameter.nestedIfOptional();
 		Object arg = readWithMessageConverters(webRequest, parameter, parameter.getNestedGenericParameterType());

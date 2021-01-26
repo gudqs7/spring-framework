@@ -146,6 +146,7 @@ public class InvocableHandlerMethod extends HandlerMethod {
 	 */
 	protected Object[] getMethodArgumentValues(NativeWebRequest request, @Nullable ModelAndViewContainer mavContainer,
 			Object... providedArgs) throws Exception {
+		// 遍历每一个参数, 再遍历配置的所有 resolvers, 通过 supportsParameter 接口判断是否支持参数解析, 是则调用 resolveArgument 接口获得实参
 
 		MethodParameter[] parameters = getMethodParameters();
 		if (ObjectUtils.isEmpty(parameters)) {

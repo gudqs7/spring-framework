@@ -147,8 +147,12 @@ public abstract class HttpServletBean extends HttpServlet implements Environment
 	 */
 	@Override
 	public final void init() throws ServletException {
+		// 1.把 servletConfig 的 initParameters 都加入 PropertySource, 根据 requiredProperties 判断所需配置项是否齐全
+		// 2.将配置项绑定到 Servlet 对象(this) 上(子类的字段也算).
+		// 3.调用子类初始化方法
 
 		// Set bean properties from init parameters.
+		// 把 servletConfig 的 initParameters 都加入 PropertySource, 根据 requiredProperties 判断所需配置项是否齐全
 		PropertyValues pvs = new ServletConfigPropertyValues(getServletConfig(), this.requiredProperties);
 		if (!pvs.isEmpty()) {
 			try {
@@ -217,6 +221,9 @@ public abstract class HttpServletBean extends HttpServlet implements Environment
 		 */
 		public ServletConfigPropertyValues(ServletConfig config, Set<String> requiredProperties)
 				throws ServletException {
+			// 1.解析 requiredProperties 得到 missingProps set, 用于判断所需配置项是否齐全
+			// 2.把 servletConfig 的 initParameters 都加入 PropertySource
+			// 3.通过判断 missingProps 检查是否还有配置项没有得到设置, 是则抛异常
 
 			Set<String> missingProps = (!CollectionUtils.isEmpty(requiredProperties) ?
 					new HashSet<>(requiredProperties) : null);

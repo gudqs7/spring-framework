@@ -392,21 +392,37 @@ public abstract class AbstractHandlerMapping extends WebApplicationObjectSupport
 	@Override
 	@Nullable
 	public final HandlerExecutionChain getHandler(HttpServletRequest request) throws Exception {
+		// 1.子类实现, 查找一个 handler 对象(类型不定, 到时候由 Adapter 处理)
+		// 2.若找不到, 则检查是否配置了默认的 Handler, 若有则使用默认的
+		// 3.若无, 直接返回.
+		// 4.若是字符串, 则试着将其当做 beanName 从容器 getBean 获取 (若获取失败会报错 NoSuchBean)
+		// 5.若 handler 已经是 chain 了, 则不新建一个 chain 对象, 反之则新建; 将 this.adaptedInterceptors 分类加入 chain 中
+		// 6.打印日志
+		// 7.判断是否需要处理 CORS, 是则加入 CORS 拦截器来处理请求, 然后返回
+
+
+		// 子类实现, 获取一个 handler 对象(类型不定, 到时候由 Adapter 处理)
 		Object handler = getHandlerInternal(request);
+
+		// 若找不到, 则检查是否配置了默认的 Handler, 若有则使用默认的
 		if (handler == null) {
 			handler = getDefaultHandler();
 		}
+		// 若无, 直接返回.
 		if (handler == null) {
 			return null;
 		}
 		// Bean name or resolved handler?
+		// 若是字符串, 则试着将其当做 beanName 从容器 getBean 获取
 		if (handler instanceof String) {
 			String handlerName = (String) handler;
 			handler = obtainApplicationContext().getBean(handlerName);
 		}
 
+		// 若 handler 已经是 chain 了, 则不新建一个 chain 对象, 反之则新建; 将 this.adaptedInterceptors 分类加入 chain 中
 		HandlerExecutionChain executionChain = getHandlerExecutionChain(handler, request);
 
+		// 打印日志
 		if (logger.isTraceEnabled()) {
 			logger.trace("Mapped to " + handler);
 		}
@@ -414,6 +430,7 @@ public abstract class AbstractHandlerMapping extends WebApplicationObjectSupport
 			logger.debug("Mapped to " + executionChain.getHandler());
 		}
 
+		// 判断是否需要处理 CORS, 是则加入 CORS 拦截器来处理请求
 		if (hasCorsConfigurationSource(handler) || CorsUtils.isPreFlightRequest(request)) {
 			CorsConfiguration config = (this.corsConfigurationSource != null ? this.corsConfigurationSource.getCorsConfiguration(request) : null);
 			CorsConfiguration handlerConfig = getCorsConfiguration(handler, request);
@@ -464,9 +481,16 @@ public abstract class AbstractHandlerMapping extends WebApplicationObjectSupport
 	 * @see #getAdaptedInterceptors()
 	 */
 	protected HandlerExecutionChain getHandlerExecutionChain(Object handler, HttpServletRequest request) {
+		// 1.若 handler 已经是 chain 了, 则不新建一个 chain 对象, 反之则新建
+		// 2.将 this.adaptedInterceptors 分类加入 chain 中
+
+		// 若 handler 已经是 chain 了, 则不新建一个 chain 对象, 反之则新建
+		//   根据 handler 和传入的拦截器(这里为[])创建一个 chain 初始化相应的字段.
 		HandlerExecutionChain chain = (handler instanceof HandlerExecutionChain ?
 				(HandlerExecutionChain) handler : new HandlerExecutionChain(handler));
 
+		// 将 this.adaptedInterceptors 分类加入 chain 中
+		//   MappedInterceptor 类型的拦截器, 还会判断是否匹配 path
 		String lookupPath = this.urlPathHelper.getLookupPathForRequest(request, LOOKUP_PATH);
 		for (HandlerInterceptor interceptor : this.adaptedInterceptors) {
 			if (interceptor instanceof MappedInterceptor) {

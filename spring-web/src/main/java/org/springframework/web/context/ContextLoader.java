@@ -86,6 +86,10 @@ import org.springframework.util.StringUtils;
  */
 public class ContextLoader {
 
+	/*
+	    这里的 final 字符串基本都是 web.xml 中定义的 <context-param></context-param>
+	 */
+
 	/**
 	 * Config param for the root WebApplicationContext id,
 	 * to be used as serialization id for the underlying BeanFactory: {@value}.
@@ -259,12 +263,22 @@ public class ContextLoader {
 	 * @see #CONFIG_LOCATION_PARAM
 	 */
 	public WebApplicationContext initWebApplicationContext(ServletContext servletContext) {
+		// 1.先判断此方法是否重复运行, 若重复则报异常.
+		// 2.记录日志, 记录开始时间用于计算启动消耗时间
+		// 3.将容器对象存储在本地而非 servletContext, 防止 ServletContext 关闭后无法访问
+		// 4.根据配置的类名, 实例化一个容器并赋值给 this.context
+		// 5.标准代码, 但其实就是 setParent(null), 前提是不扩展子类咯. 也就是说这个就是顶级容器了
+		// 6.根据 web.xml 的配置对容器做相应的配置, 初始化, 将 ServletContext 存入到 environment 对象中; 执行 InitializerClass, 调用容器 refresh 完成容器加载
+		// 7.打印容器初始化完成日志和记录耗时
+
+		// 先判断此方法是否重复运行, 若重复则报异常.
 		if (servletContext.getAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE) != null) {
 			throw new IllegalStateException(
 					"Cannot initialize context because there is already a root application context present - " +
 					"check whether you have multiple ContextLoader* definitions in your web.xml!");
 		}
 
+		// 记录日志, 记录开始时间用于计算启动消耗时间
 		servletContext.log("Initializing Spring root WebApplicationContext");
 		Log logger = LogFactory.getLog(ContextLoader.class);
 		if (logger.isInfoEnabled()) {
@@ -275,7 +289,9 @@ public class ContextLoader {
 		try {
 			// Store context in local instance variable, to guarantee that
 			// it is available on ServletContext shutdown.
+			// 将容器对象存储在本地而非 servletContext, 防止 ServletContext 关闭后无法访问
 			if (this.context == null) {
+				// 根据配置的类名, 实例化一个容器并赋值给 this.context
 				this.context = createWebApplicationContext(servletContext);
 			}
 			if (this.context instanceof ConfigurableWebApplicationContext) {
@@ -283,17 +299,22 @@ public class ContextLoader {
 				if (!cwac.isActive()) {
 					// The context has not yet been refreshed -> provide services such as
 					// setting the parent context, setting the application context id, etc
+					// 标准代码, 但其实就是 setParent(null), 前提是不扩展子类咯. 也就是说这个就是顶级容器了
 					if (cwac.getParent() == null) {
 						// The context instance was injected without an explicit parent ->
 						// determine parent for root web application context, if any.
 						ApplicationContext parent = loadParentContext(servletContext);
 						cwac.setParent(parent);
 					}
+					// 根据 web.xml 的配置对容器做相应的配置, 初始化, 将 ServletContext 存入到 environment 对象中
+					//    执行 InitializerClass, 调用容器 refresh 完成容器加载
 					configureAndRefreshWebApplicationContext(cwac, servletContext);
 				}
 			}
+			// 与第一行代码首尾呼应
 			servletContext.setAttribute(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE, this.context);
 
+			// 利用 ClassLoader 和 Thread.currentThread() 线程安全的存储 this.context
 			ClassLoader ccl = Thread.currentThread().getContextClassLoader();
 			if (ccl == ContextLoader.class.getClassLoader()) {
 				currentContext = this.context;
@@ -302,6 +323,7 @@ public class ContextLoader {
 				currentContextPerThread.put(ccl, this.context);
 			}
 
+			// 打印容器初始化完成日志和记录耗时
 			if (logger.isInfoEnabled()) {
 				long elapsedTime = System.currentTimeMillis() - startTime;
 				logger.info("Root WebApplicationContext initialized in " + elapsedTime + " ms");
@@ -329,6 +351,7 @@ public class ContextLoader {
 	 * @see ConfigurableWebApplicationContext
 	 */
 	protected WebApplicationContext createWebApplicationContext(ServletContext sc) {
+		// 获取得到的类是 WebApplicationContext, 实例化后返回.
 		Class<?> contextClass = determineContextClass(sc);
 		if (!ConfigurableWebApplicationContext.class.isAssignableFrom(contextClass)) {
 			throw new ApplicationContextException("Custom context class [" + contextClass.getName() +
@@ -346,6 +369,8 @@ public class ContextLoader {
 	 * @see org.springframework.web.context.support.XmlWebApplicationContext
 	 */
 	protected Class<?> determineContextClass(ServletContext servletContext) {
+		// 从 defaultStrategies 读取 WebApplicationContext 的配置值
+		//    即为 ContextLoader.properties 中配置的 XmlWebApplicationContext
 		String contextClassName = servletContext.getInitParameter(CONTEXT_CLASS_PARAM);
 		if (contextClassName != null) {
 			try {
@@ -369,6 +394,12 @@ public class ContextLoader {
 	}
 
 	protected void configureAndRefreshWebApplicationContext(ConfigurableWebApplicationContext wac, ServletContext sc) {
+		// 1.根据 web.xml 的配置设置容器 id, 若无则生成一个默认的
+		// 2.把 servletContext 设置给容器
+		// 3.把 web.xml 中 contextConfigLocation 配置设置给容器
+		// 4.将 ServletContext 和 ServletConfig(null) 保存到 environment 对象中
+		// 5.将配置在 web.xml 的 InitializerClass 实例化, 排序, 遍历调用
+		// 6.调用容器 refresh 完成容器加载.
 		if (ObjectUtils.identityToString(wac).equals(wac.getId())) {
 			// The application context id is still set to its original default value
 			// -> assign a more useful id based on available information
@@ -397,7 +428,12 @@ public class ContextLoader {
 			((ConfigurableWebEnvironment) env).initPropertySources(sc, null);
 		}
 
+		// 1.从 web.xml 文件中读取两种 InitializerClass, 解析后加载到 JVM 检查校对接口类型后返回一个集合
+		// 2.遍历检查 ApplicationContextInitializer 的 class 是否符合, 符合则实例化加入到集合存起来
+		// 3.对集合排序, 然后遍历调用 initialize 方法对容器进行初始化(扩展呗)
 		customizeContext(sc, wac);
+
+		// 调用 refresh 加载并初始化容器(Spring 核心方法)
 		wac.refresh();
 	}
 
@@ -419,6 +455,9 @@ public class ContextLoader {
 	 * @see ApplicationContextInitializer#initialize(ConfigurableApplicationContext)
 	 */
 	protected void customizeContext(ServletContext sc, ConfigurableWebApplicationContext wac) {
+		// 1.从 web.xml 文件中读取两种 InitializerClass, 解析后加载到 JVM 检查校对接口类型后返回一个集合
+		// 2.遍历检查 ApplicationContextInitializer 的 class 是否符合, 符合则实例化加入到集合存起来
+		// 3.对集合排序, 然后遍历调用 initialize 方法对容器进行初始化(扩展呗)
 		List<Class<ApplicationContextInitializer<ConfigurableApplicationContext>>> initializerClasses =
 				determineContextInitializerClasses(sc);
 
@@ -449,6 +488,7 @@ public class ContextLoader {
 	 */
 	protected List<Class<ApplicationContextInitializer<ConfigurableApplicationContext>>>
 			determineContextInitializerClasses(ServletContext servletContext) {
+		// 1.从 web.xml 文件中读取两种 InitializerClass, 解析后加载到 JVM 检查校对接口类型后返回一个集合
 
 		List<Class<ApplicationContextInitializer<ConfigurableApplicationContext>>> classes =
 				new ArrayList<>();
@@ -540,6 +580,7 @@ public class ContextLoader {
 	 */
 	@Nullable
 	public static WebApplicationContext getCurrentWebApplicationContext() {
+		// 根据 init 方法中的存入方式, 对应的取出容器对象再返回.
 		ClassLoader ccl = Thread.currentThread().getContextClassLoader();
 		if (ccl != null) {
 			WebApplicationContext ccpt = currentContextPerThread.get(ccl);

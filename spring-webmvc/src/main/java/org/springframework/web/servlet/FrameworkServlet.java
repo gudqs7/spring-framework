@@ -520,6 +520,12 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 */
 	@Override
 	protected final void initServletBean() throws ServletException {
+		// 0.父类的 init 执行完, 此时 contextConfigLocation 已经有值了
+		// 1.记录日志和开始时间
+		// 2.创建子容器, 与父容器绑定, 做一些配置, 调用 refresh() 完成加载.
+		// 3.打印日志, 打印耗时
+
+		// 记录日志和开始时间
 		getServletContext().log("Initializing Spring " + getClass().getSimpleName() + " '" + getServletName() + "'");
 		if (logger.isInfoEnabled()) {
 			logger.info("Initializing Servlet '" + getServletName() + "'");
@@ -527,7 +533,10 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		long startTime = System.currentTimeMillis();
 
 		try {
+			// 创建子容器, 与父容器绑定, 做一些配置, 调用 refresh() 完成加载.
 			this.webApplicationContext = initWebApplicationContext();
+
+			// 空方法, 子类扩展
 			initFrameworkServlet();
 		}
 		catch (ServletException | RuntimeException ex) {
@@ -535,6 +544,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 			throw ex;
 		}
 
+		// 打印日志, 打印耗时
 		if (logger.isDebugEnabled()) {
 			String value = this.enableLoggingRequestDetails ?
 					"shown which may lead to unsafe logging of potentially sensitive data" :
@@ -558,12 +568,22 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 * @see #setContextConfigLocation
 	 */
 	protected WebApplicationContext initWebApplicationContext() {
+		// 1.从 ServletContext 中获取 Spring 容器.(那么谁放进去的呢? 没错, 就是 ContextLoader,监听了 ServletContext 事件)
+		// 2.若容器在构造方法处被注入(可能是注解开发 Spring MVC 的方式会触发), 先忽视  -- 来自 web.xml 形式启动分析
+		// 3.根据绑定得到的配置的 contextClass 创建一个子容器, 进行一些配置和初始化, 调用 refresh() 完成容器加载
+		// 4.防止子容器不支持 refresh, 或子容器不是刚刚创建的, 因此手动触发 onRefresh(), 这个方法会加载一些默认的 bean(用处很大的那种)
+		// 5.将容器设置到 ServletContext 中(根据配置, 默认允许)
+		// 6.返回创建的子容器对象
+
+		// 从 ServletContext 中获取 Spring 容器.(那么谁放进去的呢? 没错, 就是 ContextLoader,监听了 ServletContext 事件)
 		WebApplicationContext rootContext =
 				WebApplicationContextUtils.getWebApplicationContext(getServletContext());
 		WebApplicationContext wac = null;
 
+		// 若容器在构造方法处被注入(可能是注解开发 Spring MVC 的方式会触发), 先忽视  -- 来自 web.xml 形式启动分析
 		if (this.webApplicationContext != null) {
 			// A context instance was injected at construction time -> use it
+			// 当此容器未激活时(refresh 会激活), 对容器做点设置, 然后调用容器的 refresh()
 			wac = this.webApplicationContext;
 			if (wac instanceof ConfigurableWebApplicationContext) {
 				ConfigurableWebApplicationContext cwac = (ConfigurableWebApplicationContext) wac;
@@ -575,10 +595,13 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 						// the root application context (if any; may be null) as the parent
 						cwac.setParent(rootContext);
 					}
+					// 对子容器进行配置, 添加事件监听来触发回调, 执行 Initializers, 调用子容器的 refresh(), 完成容器的加载.
 					configureAndRefreshWebApplicationContext(cwac);
 				}
 			}
 		}
+
+		// 这里应该找不到, 因为 getContextAttribute() 的值与 ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE 不是一回事
 		if (wac == null) {
 			// No context instance was injected at construction time -> see if one
 			// has been registered in the servlet context. If one exists, it is assumed
@@ -586,11 +609,15 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 			// user has performed any initialization such as setting the context id
 			wac = findWebApplicationContext();
 		}
+
+		// 一般进入这个分支, 即开始创建一个子容器
 		if (wac == null) {
 			// No context instance is defined for this servlet -> create a local one
+			// 根据绑定得到的配置的 contextClass 创建一个子容器, 进行一些配置和初始化, 调用 refresh() 完成容器加载
 			wac = createWebApplicationContext(rootContext);
 		}
 
+		// 防止子容器不支持 refresh, 或子容器不是刚刚创建的, 因此手动触发 onRefresh(), 这个方法会加载一些默认的 bean(用处很大的那种)
 		if (!this.refreshEventReceived) {
 			// Either the context is not a ConfigurableApplicationContext with refresh
 			// support or the context injected at construction time had already been
@@ -600,6 +627,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 			}
 		}
 
+		// 将容器设置到 ServletContext 中(根据配置, 默认允许)
 		if (this.publishContext) {
 			// Publish the context as a servlet context attribute.
 			String attrName = getServletContextAttributeName();
@@ -649,6 +677,12 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 * @see org.springframework.web.context.support.XmlWebApplicationContext
 	 */
 	protected WebApplicationContext createWebApplicationContext(@Nullable ApplicationContext parent) {
+		// 1.根据绑定得到的配置的 contextClass 实例化一个子容器
+		// 2.创建并配置一个 environment 对象
+		// 3.设置父容器, 设置 contextConfigLocation (xml配置文件)
+		// 4.对子容器进行配置, 添加事件监听来触发回调, 执行 Initializers, 调用子容器的 refresh(), 完成容器的加载.
+
+
 		Class<?> contextClass = getContextClass();
 		if (!ConfigurableWebApplicationContext.class.isAssignableFrom(contextClass)) {
 			throw new ApplicationContextException(
@@ -665,12 +699,20 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		if (configLocation != null) {
 			wac.setConfigLocation(configLocation);
 		}
+		// 对子容器进行配置, 添加事件监听来触发回调, 执行 Initializers, 调用子容器的 refresh(), 完成容器的加载.
 		configureAndRefreshWebApplicationContext(wac);
 
 		return wac;
 	}
 
 	protected void configureAndRefreshWebApplicationContext(ConfigurableWebApplicationContext wac) {
+		// 1.根据绑定得到的配置设置容器 id, 若无则生成默认的
+		// 2.设置 ServletContext/ServletConfig 对象
+		// 3.为子容器添加一个监听只监听子容器刷新事件的监听器, 用于容器加载完毕后调用 FrameworkServlet.onApplicationEvent()
+		// 4.将 ServletConfig/ServletContext 加入到 environment 中.
+		// 5.执行 web.xml 中配置的 Initializers, 为子容器做的初始化
+		// 6.调用子容器的 refresh(), 完成容器的加载
+
 		if (ObjectUtils.identityToString(wac).equals(wac.getId())) {
 			// The application context id is still set to its original default value
 			// -> assign a more useful id based on available information
@@ -746,6 +788,8 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 * @see ConfigurableApplicationContext#refresh()
 	 */
 	protected void applyInitializers(ConfigurableApplicationContext wac) {
+		// 从 web.xml 中获取 Initializers 的类名, 取 ServletContext 的配置和 ServletConfig 的配置合在一起.
+		// 先排序, 再遍历执行 initialize 方法
 		String globalClassNames = getServletContext().getInitParameter(ContextLoader.GLOBAL_INITIALIZER_CLASSES_PARAM);
 		if (globalClassNames != null) {
 			for (String className : StringUtils.tokenizeToStringArray(globalClassNames, INIT_PARAM_DELIMITERS)) {
@@ -837,6 +881,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 * @param event the incoming ApplicationContext event
 	 */
 	public void onApplicationEvent(ContextRefreshedEvent event) {
+		// 接受子容器加载完毕事件, 加载一些默认的 bean
 		this.refreshEventReceived = true;
 		synchronized (this.onRefreshMonitor) {
 			onRefresh(event.getApplicationContext());
@@ -987,22 +1032,36 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 */
 	protected final void processRequest(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
+		// 1.记录启动时间
+		// 2.准备国际化处理上下文
+		// 3.准备属性管理上下文
+		// 4.获取并缓存一个 asyncManager(异步)
+		// 5.初始化两个 ContextHolder
+		// 6.处理文件上传, 根据不同策略查找可执行的 controller 方法, 查到后加入拦截器, 再通过适配器来执行 controller 方法, 然后把得到的 ModelAndView 解析成视图对象, 并渲染到前端.
+		// 7.重置两个 ContextHolder
+		// 8.打印日志, 发布事件
 
+		// 记录启动时间, 定义异常变量.
 		long startTime = System.currentTimeMillis();
 		Throwable failureCause = null;
 
+		// 准备国际化处理上下文
 		LocaleContext previousLocaleContext = LocaleContextHolder.getLocaleContext();
 		LocaleContext localeContext = buildLocaleContext(request);
 
+		// 准备属性管理上下文
 		RequestAttributes previousAttributes = RequestContextHolder.getRequestAttributes();
 		ServletRequestAttributes requestAttributes = buildRequestAttributes(request, response, previousAttributes);
 
+		// 获取并缓存一个 asyncManager
 		WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(request);
 		asyncManager.registerCallableInterceptor(FrameworkServlet.class.getName(), new RequestBindingInterceptor());
 
+		// 初始化两个 ContextHolder
 		initContextHolders(request, localeContext, requestAttributes);
 
 		try {
+			// 处理文件上传, 根据不同策略查找可执行的 controller 方法, 查到后加入拦截器, 再通过适配器来执行 controller 方法, 然后把得到的 ModelAndView 解析成视图对象, 并渲染到前端.
 			doService(request, response);
 		}
 		catch (ServletException | IOException ex) {
@@ -1015,10 +1074,12 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		}
 
 		finally {
+			// 重置两个 ContextHolder
 			resetContextHolders(request, previousLocaleContext, previousAttributes);
 			if (requestAttributes != null) {
 				requestAttributes.requestCompleted();
 			}
+			// 打印日志, 发布事件
 			logResult(request, response, failureCause, asyncManager);
 			publishRequestHandledEvent(request, response, startTime, failureCause);
 		}

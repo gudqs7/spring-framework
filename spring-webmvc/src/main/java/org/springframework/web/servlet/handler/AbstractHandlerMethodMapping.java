@@ -364,6 +364,7 @@ public abstract class AbstractHandlerMethodMapping<T> extends AbstractHandlerMap
 		request.setAttribute(LOOKUP_PATH, lookupPath);
 		this.mappingRegistry.acquireReadLock();
 		try {
+			// 根据 lookupPath 和代码中的 url 进行对比匹配, 返回最匹配的方法
 			HandlerMethod handlerMethod = lookupHandlerMethod(lookupPath, request);
 			return (handlerMethod != null ? handlerMethod.createWithResolvedBean() : null);
 		}
@@ -383,17 +384,26 @@ public abstract class AbstractHandlerMethodMapping<T> extends AbstractHandlerMap
 	 */
 	@Nullable
 	protected HandlerMethod lookupHandlerMethod(String lookupPath, HttpServletRequest request) throws Exception {
+		// 1.从一堆代码中读取的 url 中根据 lookupPath 寻找匹配的 url
+		// 2.加入匹配的信息到 matches 数组, 同时对数据进行封装
+		// 3.找不到则尝试所有
+		// 4.若大于一个则排序找出最匹配的那个然后返回, 若又并列第一的, 则抛异常
+
 		List<Match> matches = new ArrayList<>();
+		// 从一堆代码中读取的 url 中根据 lookupPath 寻找匹配的 url
 		List<T> directPathMatches = this.mappingRegistry.getMappingsByUrl(lookupPath);
 		if (directPathMatches != null) {
+			// 加入匹配的信息到 matches 数组, 同时对数据进行封装
 			addMatchingMappings(directPathMatches, matches, request);
 		}
+		// 找不到则尝试所有
 		if (matches.isEmpty()) {
 			// No choice but to go through all mappings...
 			addMatchingMappings(this.mappingRegistry.getMappings().keySet(), matches, request);
 		}
 
 		if (!matches.isEmpty()) {
+			// 若大于一个则排序找出最匹配的那个, 若又并列第一的, 则抛异常
 			Match bestMatch = matches.get(0);
 			if (matches.size() > 1) {
 				Comparator<Match> comparator = new MatchComparator(getMappingComparator(request));
@@ -419,6 +429,7 @@ public abstract class AbstractHandlerMethodMapping<T> extends AbstractHandlerMap
 			return bestMatch.handlerMethod;
 		}
 		else {
+			// 根据不同的情况抛更准确的异常信息
 			return handleNoMatch(this.mappingRegistry.getMappings().keySet(), lookupPath, request);
 		}
 	}

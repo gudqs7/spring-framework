@@ -67,6 +67,7 @@ public class HandlerExecutionChain {
 	 * (in the given order) before the handler itself executes
 	 */
 	public HandlerExecutionChain(Object handler, @Nullable HandlerInterceptor... interceptors) {
+		// 根据 handler 和传入的拦截器创建一个 chain 初始化相应的字段.
 		if (handler instanceof HandlerExecutionChain) {
 			HandlerExecutionChain originalChain = (HandlerExecutionChain) handler;
 			this.handler = originalChain.getHandler();
@@ -103,6 +104,7 @@ public class HandlerExecutionChain {
 	}
 
 	private List<HandlerInterceptor> initInterceptorList() {
+		// 新建一个 list, 将构造器加入的拦截器合并进去, 然后缓存之后不再走 if.
 		if (this.interceptorList == null) {
 			this.interceptorList = new ArrayList<>();
 			if (this.interceptors != null) {
@@ -134,6 +136,7 @@ public class HandlerExecutionChain {
 	 * that this interceptor has already dealt with the response itself.
 	 */
 	boolean applyPreHandle(HttpServletRequest request, HttpServletResponse response) throws Exception {
+		// 从头到尾遍历拦截器, 执行 preHandle(), 若拦截器返回 false, 则立刻 triggerAfterCompletion, 然后 return false
 		HandlerInterceptor[] interceptors = getInterceptors();
 		if (!ObjectUtils.isEmpty(interceptors)) {
 			for (int i = 0; i < interceptors.length; i++) {
